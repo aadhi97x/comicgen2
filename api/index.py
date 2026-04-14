@@ -50,7 +50,7 @@ async def generate_comic(request: ComicRequest):
         for i in range(request.panel_count):
             desc = f"Mock scene {i+1} for {request.prompt} in {request.style} style."
             encoded_prompt = urllib.parse.quote(desc)
-            image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=512&height=512&seed={hash(desc) % 10000}&nologo=true"
+            image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=512&height=512&seed={hash(desc) % 10000}&nologo=true&model=flux"
             panels.append({"description": desc, "image_url": image_url})
         return {"panels": panels}
         
@@ -92,7 +92,7 @@ async def generate_comic(request: ComicRequest):
             encoded_prompt = urllib.parse.quote(desc)
             # Add seed to prevent caching identical images if multiple similar calls made
             # Add width/height for standard squared comic output 
-            image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=512&height=512&seed={hash(desc) % 10000}&nologo=true"
+            image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=512&height=512&seed={hash(desc) % 10000}&nologo=true&model=flux"
             panels.append({
                 "description": desc,
                 "image_url": image_url
