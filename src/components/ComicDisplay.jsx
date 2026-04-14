@@ -2,33 +2,42 @@ import { useRef, useState, useEffect } from 'react';
 import html2canvas from 'html2canvas';
 import { Download, Loader2 } from 'lucide-react';
 
-const ComicImage = ({ src, alt, index }) => {
+const ComicImage = ({ src, alt, shouldLoad, onLoadSuccess }) => {
   const [currentSrc, setCurrentSrc] = useState('');
   const [retries, setRetries] = useState(0);
   const [loading, setLoading] = useState(true);
 
-  // Stagger the initial image fetch to avoid 429 Too Many Requests
+  // Strictly wait for shouldLoad to be true
   useEffect(() => {
-    setLoading(true);
-    setCurrentSrc(''); // reset on new prompt
-    const timer = setTimeout(() => {
+    if (shouldLoad && !currentSrc) {
+      setLoading(true);
       setCurrentSrc(src);
-    }, index * 1500); // 1.5s delay between each panel's initial load
-    return () => clearTimeout(timer);
-  }, [src, index]);
+    }
+  }, [shouldLoad, src]);
+
+  // Reset if the src completely changes (new comic)
+  useEffect(() => {
+    setCurrentSrc('');
+    setRetries(0);
+  }, [src]);
 
   const handleError = () => {
-    if (retries < 8) {
+    if (retries < 6) {
       setTimeout(() => {
         setRetries(r => r + 1);
         setCurrentSrc(`${src}&retry=${Date.now()}`);
-      }, 1000 + (Math.random() * 2000)); // random jitter between 1s and 3s
+      }, 2000); // Wait 2s before retry
     }
+  };
+
+  const handleLoad = () => {
+    setLoading(false);
+    if (onLoadSuccess) onLoadSuccess();
   };
 
   return (
     <div className="w-full h-full relative bg-gray-800 flex items-center justify-center">
-      {loading && <Loader2 className="animate-spin text-purple-500 absolute" size={32} />}
+      {(!currentSrc || loading) && <Loader2 className="animate-spin text-purple-500 absolute" size={32} />}
       {currentSrc && (
         <img 
           src={currentSrc} 
@@ -36,7 +45,7 @@ const ComicImage = ({ src, alt, index }) => {
           className={`w-full h-full object-cover transition-opacity duration-300 ${loading ? 'opacity-0' : 'opacity-100'}`}
           crossOrigin="anonymous" 
           onError={handleError}
-          onLoad={() => setLoading(false)}
+          onLoad={handleLoad}
         />
       )}
     </div>
@@ -45,6 +54,12 @@ const ComicImage = ({ src, alt, index }) => {
 
 export default function ComicDisplay({ panels }) {
   const comicRef = useRef(null);
+  const [loadedIndex, setLoadedIndex] = useState(0);
+
+  // Reset loading cascade when panels change
+  useEffect(() => {
+    setLoadedIndex(0);
+  }, [panels]);
 
   const downloadComic = async () => {
     if (!comicRef.current) return;
@@ -92,7 +107,12 @@ export default function ComicDisplay({ panels }) {
           {panels.map((panel, idx) => (
             <div key={idx} className="relative group border-4 border-black overflow-hidden bg-gray-200 aspect-square">
               {/* Image from pollinations */}
-                <ComicImage src={panel.image_url} alt={`Panel ${idx + 1}`} index={idx} />
+                <ComicImage 
+                  src={panel.image_url} 
+                  alt={`Panel ${idx + 1}`} 
+                  shouldLoad={idx <= loadedIndex}
+                  onLoadSuccess={() => setLoadedIndex(prev => Math.max(prev, idx + 1))}
+                />
               {/* Optional: if we want to show the generated prompt text slightly */}
               <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center p-4">
                 <p className="text-white text-xs text-center">{panel.description}</p>
