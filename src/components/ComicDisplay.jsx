@@ -1,6 +1,35 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import html2canvas from 'html2canvas';
-import { Download } from 'lucide-react';
+import { Download, Loader2 } from 'lucide-react';
+
+const ComicImage = ({ src, alt }) => {
+  const [currentSrc, setCurrentSrc] = useState(src);
+  const [retries, setRetries] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  const handleError = () => {
+    if (retries < 6) {
+      setTimeout(() => {
+        setRetries(r => r + 1);
+        setCurrentSrc(`${src}&retry=${Date.now()}`);
+      }, 1000 + (retries * 500)); // 1s, 1.5s, 2s...
+    }
+  };
+
+  return (
+    <div className="w-full h-full relative bg-gray-800 flex items-center justify-center">
+      {loading && <Loader2 className="animate-spin text-purple-500 absolute" size={32} />}
+      <img 
+        src={currentSrc} 
+        alt={alt} 
+        className={`w-full h-full object-cover transition-opacity duration-300 ${loading ? 'opacity-0' : 'opacity-100'}`}
+        crossOrigin="anonymous" 
+        onError={handleError}
+        onLoad={() => setLoading(false)}
+      />
+    </div>
+  );
+};
 
 export default function ComicDisplay({ panels }) {
   const comicRef = useRef(null);
@@ -51,12 +80,7 @@ export default function ComicDisplay({ panels }) {
           {panels.map((panel, idx) => (
             <div key={idx} className="relative group border-4 border-black overflow-hidden bg-gray-200 aspect-square">
               {/* Image from pollinations */}
-              <img 
-                src={panel.image_url} 
-                alt={`Panel ${idx + 1}`} 
-                className="w-full h-full object-cover"
-                crossOrigin="anonymous" 
-              />
+                <ComicImage src={panel.image_url} alt={`Panel ${idx + 1}`} />
               {/* Optional: if we want to show the generated prompt text slightly */}
               <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center p-4">
                 <p className="text-white text-xs text-center">{panel.description}</p>
