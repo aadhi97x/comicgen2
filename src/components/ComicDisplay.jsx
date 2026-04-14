@@ -2,23 +2,21 @@ import { useRef, useState, useEffect } from 'react';
 import html2canvas from 'html2canvas';
 import { Download, Loader2 } from 'lucide-react';
 
-const ComicImage = ({ src, alt, shouldLoad, onLoadSuccess }) => {
+const ComicImage = ({ src, alt, index }) => {
   const [currentSrc, setCurrentSrc] = useState('');
   const [retries, setRetries] = useState(0);
   const [loading, setLoading] = useState(true);
 
+  // Stagger the fetch slightly so we don't pound the server at the exact same millisecond
   useEffect(() => {
-    if (shouldLoad) {
-      if (!currentSrc || !currentSrc.startsWith(src)) {
-        setLoading(true);
-        setCurrentSrc(src);
-        setRetries(0);
-      }
-    } else {
-      setCurrentSrc('');
-      setLoading(true);
-    }
-  }, [shouldLoad, src, currentSrc]);
+    setLoading(true);
+    setCurrentSrc(''); // Clear out old comic
+    const timer = setTimeout(() => {
+      setCurrentSrc(src);
+    }, index * 500); // Only 0.5s stagger between panels
+    
+    return () => clearTimeout(timer);
+  }, [src, index]);
 
   const handleError = () => {
     if (retries < 6) {
@@ -31,7 +29,6 @@ const ComicImage = ({ src, alt, shouldLoad, onLoadSuccess }) => {
 
   const handleLoad = () => {
     setLoading(false);
-    if (onLoadSuccess) onLoadSuccess();
   };
 
   return (
@@ -53,12 +50,6 @@ const ComicImage = ({ src, alt, shouldLoad, onLoadSuccess }) => {
 
 export default function ComicDisplay({ panels }) {
   const comicRef = useRef(null);
-  const [loadedIndex, setLoadedIndex] = useState(0);
-
-  // Reset loading cascade when panels change
-  useEffect(() => {
-    setLoadedIndex(0);
-  }, [panels]);
 
   const downloadComic = async () => {
     if (!comicRef.current) return;
@@ -109,8 +100,7 @@ export default function ComicDisplay({ panels }) {
                 <ComicImage 
                   src={panel.image_url} 
                   alt={`Panel ${idx + 1}`} 
-                  shouldLoad={idx <= loadedIndex}
-                  onLoadSuccess={() => setLoadedIndex(prev => Math.max(prev, idx + 1))}
+                  index={idx}
                 />
               {/* Optional: if we want to show the generated prompt text slightly */}
               <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center p-4">
