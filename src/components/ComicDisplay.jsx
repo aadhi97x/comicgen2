@@ -1,32 +1,44 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import html2canvas from 'html2canvas';
 import { Download, Loader2 } from 'lucide-react';
 
-const ComicImage = ({ src, alt }) => {
-  const [currentSrc, setCurrentSrc] = useState(src);
+const ComicImage = ({ src, alt, index }) => {
+  const [currentSrc, setCurrentSrc] = useState('');
   const [retries, setRetries] = useState(0);
   const [loading, setLoading] = useState(true);
 
+  // Stagger the initial image fetch to avoid 429 Too Many Requests
+  useEffect(() => {
+    setLoading(true);
+    setCurrentSrc(''); // reset on new prompt
+    const timer = setTimeout(() => {
+      setCurrentSrc(src);
+    }, index * 1500); // 1.5s delay between each panel's initial load
+    return () => clearTimeout(timer);
+  }, [src, index]);
+
   const handleError = () => {
-    if (retries < 6) {
+    if (retries < 8) {
       setTimeout(() => {
         setRetries(r => r + 1);
         setCurrentSrc(`${src}&retry=${Date.now()}`);
-      }, 1000 + (retries * 500)); // 1s, 1.5s, 2s...
+      }, 1000 + (Math.random() * 2000)); // random jitter between 1s and 3s
     }
   };
 
   return (
     <div className="w-full h-full relative bg-gray-800 flex items-center justify-center">
       {loading && <Loader2 className="animate-spin text-purple-500 absolute" size={32} />}
-      <img 
-        src={currentSrc} 
-        alt={alt} 
-        className={`w-full h-full object-cover transition-opacity duration-300 ${loading ? 'opacity-0' : 'opacity-100'}`}
-        crossOrigin="anonymous" 
-        onError={handleError}
-        onLoad={() => setLoading(false)}
-      />
+      {currentSrc && (
+        <img 
+          src={currentSrc} 
+          alt={alt} 
+          className={`w-full h-full object-cover transition-opacity duration-300 ${loading ? 'opacity-0' : 'opacity-100'}`}
+          crossOrigin="anonymous" 
+          onError={handleError}
+          onLoad={() => setLoading(false)}
+        />
+      )}
     </div>
   );
 };
@@ -80,7 +92,7 @@ export default function ComicDisplay({ panels }) {
           {panels.map((panel, idx) => (
             <div key={idx} className="relative group border-4 border-black overflow-hidden bg-gray-200 aspect-square">
               {/* Image from pollinations */}
-                <ComicImage src={panel.image_url} alt={`Panel ${idx + 1}`} />
+                <ComicImage src={panel.image_url} alt={`Panel ${idx + 1}`} index={idx} />
               {/* Optional: if we want to show the generated prompt text slightly */}
               <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center p-4">
                 <p className="text-white text-xs text-center">{panel.description}</p>
