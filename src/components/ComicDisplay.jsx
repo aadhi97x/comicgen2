@@ -7,19 +7,18 @@ const ComicImage = ({ src, alt, shouldLoad, onLoadSuccess }) => {
   const [retries, setRetries] = useState(0);
   const [loading, setLoading] = useState(true);
 
-  // Strictly wait for shouldLoad to be true
   useEffect(() => {
-    if (shouldLoad && !currentSrc) {
+    if (shouldLoad) {
+      if (!currentSrc || !currentSrc.startsWith(src)) {
+        setLoading(true);
+        setCurrentSrc(src);
+        setRetries(0);
+      }
+    } else {
+      setCurrentSrc('');
       setLoading(true);
-      setCurrentSrc(src);
     }
-  }, [shouldLoad, src]);
-
-  // Reset if the src completely changes (new comic)
-  useEffect(() => {
-    setCurrentSrc('');
-    setRetries(0);
-  }, [src]);
+  }, [shouldLoad, src, currentSrc]);
 
   const handleError = () => {
     if (retries < 6) {
