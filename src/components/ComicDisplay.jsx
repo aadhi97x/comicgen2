@@ -39,7 +39,6 @@ const ComicImage = ({ src, alt, index }) => {
           src={currentSrc} 
           alt={alt} 
           className={`w-full h-full object-cover transition-opacity duration-300 ${loading ? 'opacity-0' : 'opacity-100'}`}
-          crossOrigin="anonymous" 
           onError={handleError}
           onLoad={handleLoad}
         />

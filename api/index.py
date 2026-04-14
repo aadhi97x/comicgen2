@@ -1,10 +1,12 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from pydantic import BaseModel
 import os
 import google.generativeai as genai
 import json
 import urllib.parse
+import httpx
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -42,6 +44,36 @@ async def login(request: LoginRequest):
         raise HTTPException(status_code=400, detail="Invalid credentials")
     return {"token": "comic_mock_token_12345"}
 
+@app.get("/api/generate-image")
+async def generate_image(prompt: str):
+    """Proxy endpoint: securely fetches an image from Hugging Face and streams it back."""
+    hf_key = os.getenv("HUGGINGFACE_API_KEY", "")
+    if not hf_key:
+        raise HTTPException(status_code=503, detail="HUGGINGFACE_API_KEY not configured.")
+
+    # FLUX.1-schnell is fast, high quality, and free on Hugging Face
+    HF_MODEL = "black-forest-labs/FLUX.1-schnell"
+    HF_URL = f"https://api-inference.huggingface.co/models/{HF_MODEL}"
+
+    headers = {"Authorization": f"Bearer {hf_key}"}
+    payload = {
+        "inputs": prompt,
+        "parameters": {
+            "num_inference_steps": 4,  # schnell is optimized for 4 steps
+            "width": 512,
+            "height": 512,
+        }
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            r = await client.post(HF_URL, headers=headers, json=payload)
+        if r.status_code != 200:
+            raise HTTPException(status_code=r.status_code, detail=f"HF API error: {r.text[:200]}")
+        return Response(content=r.content, media_type="image/jpeg")
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="Image generation timed out.")
+
 @app.post("/api/generate-comic")
 async def generate_comic(request: ComicRequest):
     if not api_key:
@@ -50,7 +82,7 @@ async def generate_comic(request: ComicRequest):
         for i in range(request.panel_count):
             desc = f"Mock scene {i+1} for {request.prompt} in {request.style} style."
             encoded_prompt = urllib.parse.quote(desc)
-            image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=512&height=512&seed={hash(desc) % 10000}&nologo=true&model=flux"
+            image_url = f"/api/generate-image?prompt={encoded_prompt}"
             panels.append({"description": desc, "image_url": image_url})
         return {"panels": panels}
         
@@ -88,11 +120,9 @@ async def generate_comic(request: ComicRequest):
             
         panels = []
         for desc in descriptions[:request.panel_count]:
-            # Generate Pollinations URL
+            # Point to our own secure proxy instead of Pollinations
             encoded_prompt = urllib.parse.quote(desc)
-            # Add seed to prevent caching identical images if multiple similar calls made
-            # Add width/height for standard squared comic output 
-            image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=512&height=512&seed={hash(desc) % 10000}&nologo=true&model=flux"
+            image_url = f"/api/generate-image?prompt={encoded_prompt}"
             panels.append({
                 "description": desc,
                 "image_url": image_url
